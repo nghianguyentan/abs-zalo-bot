@@ -15,7 +15,7 @@ import { loadConfig } from "../src/config.js";
 import { validateBotRegistry } from "../src/bot_registry.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const IGNORED_DIRS = new Set([".git", "node_modules", "data", "coverage"]);
+const IGNORED_DIRS = new Set([".git", "node_modules", "data", "coverage", "graphify-out"]);
 const IGNORED_FILES = new Set([".env", "bots.json"]);
 const SAFE_ENV_FILES = new Set([".env.example"]);
 const TEXT_EXTENSIONS = new Set([

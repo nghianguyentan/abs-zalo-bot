@@ -161,4 +161,30 @@ test("ABS Zalo Runtime methods & Server endpoints for group management and polls
     assert.equal(actionData.ok, true);
     assert.equal(actionData.result.threadId, "u1");
   });
+
+  await t.test("Hermes bridge v1 is cursor-safe and allowlist-gated", async () => {
+    const prior = process.env.HERMES_ZALO_ALLOWED_THREADS;
+    process.env.HERMES_ZALO_ALLOWED_THREADS = "dm-hermes";
+    t.after(() => {
+      if (prior == null) delete process.env.HERMES_ZALO_ALLOWED_THREADS;
+      else process.env.HERMES_ZALO_ALLOWED_THREADS = prior;
+    });
+    store.upsertSource({ accountId: "default", sourceId: "dm-hermes", sourceType: "dm", sourceName: "Hermes test", mode: "reply_enabled", isAllowed: true });
+    store.putEvent({
+      event_id: "event-hermes-1", account_id: "default", source_id: "dm-hermes", source_type: "dm",
+      source_name: "Hermes test", sender_id: "user-hermes", sender_name: "Tester", message_id: "msg-hermes-1",
+      message_type: "text", text: "xin chào", created_at: "2026-08-24T05:00:00.000Z",
+    });
+    const health = await fetch(`${base}/v1/hermes/health`);
+    assert.equal((await health.json()).protocol, "zalo-bridge/v1");
+    const events = await fetch(`${base}/v1/hermes/events`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ limit: 10 }) });
+    const eventData = await events.json();
+    assert.equal(eventData.events.length, 1);
+    assert.equal(eventData.events[0].thread.id, "dm-hermes");
+    const sent = await fetch(`${base}/v1/hermes/messages`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ thread_id: "dm-hermes", text: "đã nhận", reply_to: "msg-hermes-1" }) });
+    assert.equal((await sent.json()).ok, true);
+    const blocked = await fetch(`${base}/v1/hermes/messages`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ thread_id: "not-allowed", text: "không gửi" }) });
+    assert.equal(blocked.status, 400);
+    assert.equal((await blocked.json()).error, "thread_not_allowlisted");
+  });
 });

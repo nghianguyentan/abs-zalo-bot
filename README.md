@@ -2,7 +2,7 @@
 
 [![npm version](https://img.shields.io/npm/v/abs-zalo-bot.svg?color=blue)](https://www.npmjs.com/package/abs-zalo-bot)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
-[![Automated Tests](https://img.shields.io/badge/Tests-71%2F71%20Passing-brightgreen.svg)](test/)
+[![Automated Tests](https://img.shields.io/badge/Tests-72%2F72%20Passing-brightgreen.svg)](test/)
 [![AI Agent Ready](https://img.shields.io/badge/AI%20Agent-Hermes%20%7C%20Claude%20Code%20%7C%20Codex-purple.svg)](mcp/)
 [![Model Context Protocol](https://img.shields.io/badge/MCP-Standard%20v1.3.0-blueviolet.svg)](mcp/)
 
@@ -20,7 +20,7 @@ Install once · run with 1 command or browser QR · AI Agents connect via Model 
 | **Architecture** | **Dual-Adapter: Personal QR + Official OA (Webhook)** | Single unofficial scraping adapter |
 | **Safety & Privacy** | **Fail-Closed PolicyGuard + Secret Redaction** | No guardrails (high ban/checkpoint risk) |
 | **AI Integration** | **Native Model Context Protocol (MCP Stdio Server)** | Raw HTTP webhooks / Manual glue code |
-| **Code Quality** | **68/68 Automated Unit & Integration Tests** | Little to no test coverage |
+| **Code Quality** | **72/72 Automated Unit & Integration Tests** | Little to no test coverage |
 | **Multi-Agent Ready** | **Hermes Agent, Claude Code, OpenAI Codex, Cursor** | Single-system or standalone CLI only |
 
 ---

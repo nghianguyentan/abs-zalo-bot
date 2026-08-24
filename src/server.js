@@ -9,6 +9,7 @@ import { loadBotRegistry } from "./bot_registry.js";
 import { createOaWebhookHandler } from "./oa_webhook.js";
 import { createOaAutoReplyWorker } from "./oa_auto_reply.js";
 import { publicBrandMetadata } from "./brand.js";
+import { createHermesBridge } from "./hermes_bridge.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -17,7 +18,7 @@ function auth(req, res, next) {
   if (!expected || expected === "change-me") {
     return next();
   }
-  const header = req.get("x-bridge-token") || "";
+  const header = req.get("x-bridge-token") || req.get("authorization")?.replace(/^Bearer\s+/i, "") || "";
   if (header === expected) return next();
   return res.status(401).json({ error: "unauthorized" });
 }
@@ -127,6 +128,34 @@ export function createApp({
   });
 
   app.use(auth);
+  const hermesBridge = createHermesBridge({ config, store, hub });
+
+  app.get("/v1/hermes/health", (_req, res) => res.json(hermesBridge.health()));
+  app.post("/v1/hermes/events", (req, res) => {
+    try {
+      res.json(hermesBridge.events(req.body || {}));
+    } catch (err) {
+      res.status(400).json({ ok: false, error: String(err?.message || err).slice(0, 120) });
+    }
+  });
+  app.post("/v1/hermes/messages", async (req, res) => {
+    try {
+      res.json(await hermesBridge.sendMessage({
+        threadId: req.body?.thread_id,
+        text: req.body?.text,
+        replyTo: req.body?.reply_to,
+      }));
+    } catch (err) {
+      res.status(400).json({ ok: false, error: String(err?.message || err).slice(0, 120) });
+    }
+  });
+  app.post("/v1/hermes/typing", async (req, res) => {
+    try {
+      res.json(await hermesBridge.typing({ threadId: req.body?.thread_id }));
+    } catch (err) {
+      res.status(400).json({ ok: false, error: String(err?.message || err).slice(0, 120) });
+    }
+  });
 
   app.get("/api/status", (_req, res) => {
     const accountId = config.default_account_id;
