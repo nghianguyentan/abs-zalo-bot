@@ -144,6 +144,7 @@ export function createApp({
         threadId: req.body?.thread_id,
         text: req.body?.text,
         replyTo: req.body?.reply_to,
+        threadType: req.body?.thread_type,
       }));
     } catch (err) {
       res.status(400).json({ ok: false, error: String(err?.message || err).slice(0, 120) });
@@ -151,7 +152,7 @@ export function createApp({
   });
   app.post("/v1/hermes/typing", async (req, res) => {
     try {
-      res.json(await hermesBridge.typing({ threadId: req.body?.thread_id }));
+      res.json(await hermesBridge.typing({ threadId: req.body?.thread_id, threadType: req.body?.thread_type }));
     } catch (err) {
       res.status(400).json({ ok: false, error: String(err?.message || err).slice(0, 120) });
     }

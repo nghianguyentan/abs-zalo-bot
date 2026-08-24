@@ -53,28 +53,29 @@ export function createHermesBridge({ config, store, hub }) {
         next_cursor: last ? encodeCursor(last) : String(cursor || ""),
       };
     },
-    async sendMessage({ threadId, text, replyTo = null } = {}) {
+    async sendMessage({ threadId, text, replyTo = null, threadType = null } = {}) {
       const thread = String(threadId || "").trim();
       const body = String(text || "").trim();
       if (!thread || !body || body.length > 4000) throw new Error("invalid_message");
       if (!allowedThreads().has(thread)) throw new Error("thread_not_allowlisted");
       const runtime = hub.getRuntime(accountId());
       const source = store.listSources(accountId()).find((item) => String(item.source_id) === thread);
-      const threadType = source?.source_type === "dm" ? 0 : 1;
+      const resolvedThreadType = Number(threadType) === 0 ? 0 : source?.source_type === "dm" ? 0 : 1;
       const result = await runtime.performPersonalAction("send_message", {
         thread_id: thread,
-        thread_type: threadType,
+        thread_type: resolvedThreadType,
         text: body,
         quote: replyTo ? { msgId: String(replyTo) } : undefined,
       });
       store.audit({ accountId: accountId(), actorId: "hermes-zalo-plugin", action: "hermes_bridge_send", detail: `thread=${sha256(thread).slice(0, 12)}` });
       return { ok: true, message_id: String(result?.messageId || result?.msgId || "") };
     },
-    async typing({ threadId } = {}) {
+    async typing({ threadId, threadType = null } = {}) {
       const thread = String(threadId || "").trim();
       if (!thread || !allowedThreads().has(thread)) throw new Error("thread_not_allowlisted");
       const source = store.listSources(accountId()).find((item) => String(item.source_id) === thread);
-      await hub.getRuntime(accountId()).performPersonalAction("typing", { thread_id: thread, thread_type: source?.source_type === "dm" ? 0 : 1 });
+      const resolvedThreadType = Number(threadType) === 0 ? 0 : source?.source_type === "dm" ? 0 : 1;
+      await hub.getRuntime(accountId()).performPersonalAction("typing", { thread_id: thread, thread_type: resolvedThreadType });
       return { ok: true };
     },
   };
