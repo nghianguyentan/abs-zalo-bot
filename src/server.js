@@ -556,6 +556,23 @@ export function createApp({
 
   // ── Group Ops & Advanced Zalo Endpoints (ABS Specialized Ops) ──
 
+  app.post("/api/personal/actions", async (req, res) => {
+    try {
+      const accountId = req.body?.account_id || config.default_account_id;
+      const action = String(req.body?.action || "");
+      // A tool call is not sufficient authority: destructive Personal actions
+      // require an explicit caller confirmation at this local bridge boundary.
+      if (req.body?.confirm !== true) return res.status(400).json({ ok: false, error: "explicit_confirmation_required" });
+      const runtime = hub.getRuntime(accountId);
+      if (!runtime.api) return res.status(400).json({ ok: false, error: "not_connected" });
+      const result = await runtime.performPersonalAction(action, req.body?.payload || {});
+      store.audit({ accountId, actorId: "api", action: `personal_${action}`, detail: "explicit_confirmation=true" });
+      res.json({ ok: true, action, result });
+    } catch (err) {
+      res.status(400).json({ ok: false, error: String(err?.message || err).slice(0, 300) });
+    }
+  });
+
   app.post("/api/groups/:groupId/kick", async (req, res) => {
     try {
       const accountId = req.body?.account_id || config.default_account_id;

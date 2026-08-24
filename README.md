@@ -2,7 +2,7 @@
 
 [![npm version](https://img.shields.io/npm/v/abs-zalo-bot.svg?color=blue)](https://www.npmjs.com/package/abs-zalo-bot)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
-[![Automated Tests](https://img.shields.io/badge/Tests-68%2F68%20Passing-brightgreen.svg)](test/)
+[![Automated Tests](https://img.shields.io/badge/Tests-71%2F71%20Passing-brightgreen.svg)](test/)
 [![AI Agent Ready](https://img.shields.io/badge/AI%20Agent-Hermes%20%7C%20Claude%20Code%20%7C%20Codex-purple.svg)](mcp/)
 [![Model Context Protocol](https://img.shields.io/badge/MCP-Standard%20v1.3.0-blueviolet.svg)](mcp/)
 
@@ -55,6 +55,7 @@ Attach `npx abs-zalo-bot` or `node mcp/server.js` to your Agent configuration:
 | | `abs_zalo_lock_poll` | Lock / close an active voting poll |
 | | `abs_zalo_react_message` | Send emoji reactions to messages (`/:heart`, `/:like`, etc.) |
 | | `abs_zalo_undo_message` | Recall / undo a previously sent message |
+| **Personal lifecycle** | `abs_zalo_personal_action` | Explicitly confirmed rich message/reply/mention/file, sticker, voice/video, forward, typing, group lifecycle/settings and friend lifecycle actions |
 | **Discovery & Intel** | `abs_zalo_get_user_info` | Fetch public user profile by userId |
 | | `abs_zalo_get_group_info` | Fetch group settings and metadata |
 | | `abs_zalo_find_user` | Lookup user profile by phone number |
@@ -94,6 +95,7 @@ Open `http://127.0.0.1:3871` in your browser to scan QR code, configure group po
 - **Side-effect control**: Every outbound message and administrative action is audited through `PolicyGuard`.
 - **Credential isolation**: Session cookies and tokens are kept in private local storage; never exposed over prompts or logs.
 - **Fail-closed default**: Inbound events are listener-only until explicitly allowlisted.
+- **Explicit side effects**: Personal lifecycle actions require `confirm: true` at the local bridge; file attachments are accepted only beneath `ABS_ZALO_MEDIA_ROOT`.
 
 ---
 *Built with ❤️ by ABS (Agent Business System) for the Global & Vietnamese AI Agent Community.*

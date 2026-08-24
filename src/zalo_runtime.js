@@ -4,6 +4,40 @@ import path from "node:path";
 import { EventEmitter } from "node:events";
 import { normalizeInboundMessage, utcNow } from "./schema.js";
 
+const PERSONAL_ACTIONS = new Set([
+  "send_message", "send_sticker", "send_voice", "send_video", "forward_message", "typing",
+  "create_group", "rename_group", "leave_group", "disperse_group", "update_group_settings",
+  "friend_accept", "friend_reject", "friend_request", "friend_request_undo", "friend_remove",
+  "user_block", "user_unblock"
+]);
+
+function required(value, name) {
+  const text = String(value || "").trim();
+  if (!text) throw new Error(`${name}_required`);
+  return text;
+}
+
+function threadType(value) { return Number(value) === 0 ? 0 : 1; }
+
+function safeHttpsUrl(value, name) {
+  const url = new URL(required(value, name));
+  if (url.protocol !== "https:" || /^(?:localhost|127\\.|0\\.|10\\.|192\\.168\\.|172\\.(?:1[6-9]|2\\d|3[0-1])\\.)/u.test(url.hostname)) throw new Error(`${name}_must_be_public_https`);
+  return url.toString();
+}
+
+function controlledAttachment(filePath) {
+  const root = process.env.ABS_ZALO_MEDIA_ROOT;
+  if (!root) throw new Error("media_root_not_configured");
+  const canonicalRoot = fs.realpathSync(path.resolve(root));
+  const canonicalFile = fs.realpathSync(path.resolve(required(filePath, "attachment_path")));
+  if (!canonicalFile.startsWith(`${canonicalRoot}${path.sep}`)) throw new Error("attachment_outside_media_root");
+  const stat = fs.statSync(canonicalFile);
+  if (!stat.isFile() || stat.size > 25 * 1024 * 1024) throw new Error("attachment_invalid_or_too_large");
+  const filename = path.basename(canonicalFile);
+  if (!filename.includes(".")) throw new Error("attachment_extension_required");
+  return { data: fs.readFileSync(canonicalFile), filename, metadata: { totalSize: stat.size } };
+}
+
 export class AccountRuntime extends EventEmitter {
   constructor({ accountId, store, policy, onEvent, clientFactory = null }) {
     super();
@@ -314,6 +348,64 @@ export class AccountRuntime extends EventEmitter {
   async getAllGroups() {
     if (!this.api?.getAllGroups) throw new Error("not_connected");
     return this.api.getAllGroups();
+  }
+
+  async performPersonalAction(action, payload = {}) {
+    const name = String(action || "").trim();
+    if (!PERSONAL_ACTIONS.has(name)) throw new Error("unsupported_personal_action");
+    if (!this.api) throw new Error("not_connected");
+    const api = this.api;
+    const target = () => required(payload.thread_id || payload.target_id, "thread_id");
+    switch (name) {
+      case "send_message": {
+        if (typeof api.sendMessage !== "function") break;
+        const message = { msg: String(payload.text || "").slice(0, 4000) };
+        if (!message.msg && !payload.attachment_path) throw new Error("text_or_attachment_required");
+        if (payload.quote) message.quote = payload.quote;
+        if (Array.isArray(payload.mentions)) message.mentions = payload.mentions.slice(0, 50);
+        if (payload.attachment_path) message.attachments = controlledAttachment(payload.attachment_path);
+        return api.sendMessage(message, target(), threadType(payload.thread_type));
+      }
+      case "send_sticker":
+        if (typeof api.sendSticker !== "function") break;
+        return api.sendSticker({ id: Number(payload.sticker_id), cateId: Number(payload.category_id), type: Number(payload.sticker_type) }, target(), threadType(payload.thread_type));
+      case "send_voice":
+        if (typeof api.sendVoice !== "function") break;
+        return api.sendVoice({ voiceUrl: safeHttpsUrl(payload.voice_url, "voice_url") }, target(), threadType(payload.thread_type));
+      case "send_video":
+        if (typeof api.sendVideo !== "function") break;
+        return api.sendVideo({ msg: String(payload.text || "").slice(0, 4000), videoUrl: safeHttpsUrl(payload.video_url, "video_url"), thumbnailUrl: safeHttpsUrl(payload.thumbnail_url, "thumbnail_url"), duration: Number(payload.duration_ms) || 0, width: Number(payload.width) || undefined, height: Number(payload.height) || undefined }, target(), threadType(payload.thread_type));
+      case "forward_message":
+        if (typeof api.forwardMessage !== "function") break;
+        return api.forwardMessage({ message: required(payload.text, "text"), reference: payload.reference || undefined }, (Array.isArray(payload.thread_ids) ? payload.thread_ids : []).map((id) => required(id, "thread_id")).slice(0, 50), threadType(payload.thread_type));
+      case "typing":
+        if (typeof api.sendTypingEvent !== "function") break;
+        return api.sendTypingEvent(target(), threadType(payload.thread_type));
+      case "create_group":
+        if (typeof api.createGroup !== "function") break;
+        return api.createGroup({ name: String(payload.group_name || "").slice(0, 100), members: (Array.isArray(payload.member_ids) ? payload.member_ids : []).map((id) => required(id, "member_id")).slice(1, 500) });
+      case "rename_group":
+        if (typeof api.changeGroupName !== "function") break;
+        return api.changeGroupName(required(payload.group_name, "group_name").slice(0, 100), required(payload.group_id, "group_id"));
+      case "leave_group":
+        if (typeof api.leaveGroup !== "function") break;
+        return api.leaveGroup(required(payload.group_id, "group_id"), Boolean(payload.silent));
+      case "disperse_group":
+        if (typeof api.disperseGroup !== "function") break;
+        return api.disperseGroup(required(payload.group_id, "group_id"));
+      case "update_group_settings":
+        if (typeof api.updateGroupSettings !== "function") break;
+        return api.updateGroupSettings(payload.settings && typeof payload.settings === "object" ? payload.settings : {}, required(payload.group_id, "group_id"));
+      case "friend_accept": if (typeof api.acceptFriendRequest === "function") return api.acceptFriendRequest(required(payload.user_id, "user_id")); break;
+      case "friend_reject": if (typeof api.rejectFriendRequest === "function") return api.rejectFriendRequest(required(payload.user_id, "user_id")); break;
+      case "friend_request": if (typeof api.sendFriendRequest === "function") return api.sendFriendRequest(String(payload.message || "").slice(0, 300), required(payload.user_id, "user_id")); break;
+      case "friend_request_undo": if (typeof api.undoFriendRequest === "function") return api.undoFriendRequest(required(payload.user_id, "user_id")); break;
+      case "friend_remove": if (typeof api.removeFriend === "function") return api.removeFriend(required(payload.user_id, "user_id")); break;
+      case "user_block": if (typeof api.blockUser === "function") return api.blockUser(required(payload.user_id, "user_id")); break;
+      case "user_unblock": if (typeof api.unblockUser === "function") return api.unblockUser(required(payload.user_id, "user_id")); break;
+      default: break;
+    }
+    throw new Error(`provider_action_unavailable:${name}`);
   }
 
   async pause() {

@@ -46,6 +46,14 @@ test("ABS Zalo Runtime methods & Server endpoints for group management and polls
     findUser: async (phone) => ({ error: 0, data: { phone, userId: "u123" } }),
     getAllFriends: async () => ({ error: 0, data: [{ userId: "u1" }] }),
     getAllGroups: async () => ({ error: 0, data: [{ groupId: "g1" }] }),
+    sendMessage: async (message, threadId, type) => ({ message, threadId, type }),
+    sendSticker: async (sticker, threadId, type) => ({ sticker, threadId, type }),
+    sendTypingEvent: async (threadId, type) => ({ threadId, type }),
+    createGroup: async (options) => ({ groupId: "new-group", ...options }),
+    changeGroupName: async (name, groupId) => ({ name, groupId }),
+    leaveGroup: async (groupId, silent) => ({ groupId, silent }),
+    acceptFriendRequest: async (userId) => ({ accepted: userId }),
+    sendFriendRequest: async (message, userId) => ({ message, userId }),
   };
 
   const hub = new BridgeHub({ config, store, policy, clientFactory: {} });
@@ -74,6 +82,16 @@ test("ABS Zalo Runtime methods & Server endpoints for group management and polls
     const pollRes = await runtime.createPoll("group1", { question: "Q?", options: ["A", "B"] });
     assert.equal(pollRes.poll_id, "p123");
     assert.equal(pollRes.question, "Q?");
+
+    const reply = await runtime.performPersonalAction("send_message", {
+      text: "Xin chào", thread_id: "u1", thread_type: 0,
+      quote: { msgId: "m1" }, mentions: [{ uid: "u1", pos: 0, len: 2 }]
+    });
+    assert.equal(reply.threadId, "u1");
+    assert.equal(reply.type, 0);
+    assert.equal(reply.message.quote.msgId, "m1");
+    assert.equal((await runtime.performPersonalAction("friend_request", { user_id: "u2", message: "Kết bạn nhé" })).userId, "u2");
+    assert.equal((await runtime.performPersonalAction("rename_group", { group_id: "g1", group_name: "Nhóm mới" })).name, "Nhóm mới");
   });
 
   // Test Express REST Endpoints
@@ -128,5 +146,19 @@ test("ABS Zalo Runtime methods & Server endpoints for group management and polls
     const groupData = await groupRes.json();
     assert.equal(groupData.ok, true);
     assert.equal(groupData.result.data.groupId, "g123");
+
+    const denied = await fetch(`${base}/api/personal/actions`, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ action: "typing", payload: { thread_id: "u1", thread_type: 0 } })
+    });
+    assert.equal(denied.status, 400);
+
+    const actionRes = await fetch(`${base}/api/personal/actions`, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ confirm: true, action: "typing", payload: { thread_id: "u1", thread_type: 0 } })
+    });
+    const actionData = await actionRes.json();
+    assert.equal(actionData.ok, true);
+    assert.equal(actionData.result.threadId, "u1");
   });
 });
