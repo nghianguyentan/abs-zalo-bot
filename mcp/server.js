@@ -484,7 +484,7 @@ server.tool(
   "abs_zalo_find_user",
   "Find a Zalo user profile by phone number.",
   {
-    phone: z.string().describe("Phone number with country code, e.g. 84901234567"),
+    phone: z.string().describe("Phone number in international format, e.g. +<country-code><subscriber-number>"),
     account_id: z.string().optional(),
   },
   async ({ phone, account_id }) => {
