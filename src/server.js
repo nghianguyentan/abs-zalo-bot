@@ -132,6 +132,7 @@ export function createApp({
   const hermesBridge = createHermesBridge({ config, store, hub });
 
   app.get("/v1/hermes/health", (_req, res) => res.json(hermesBridge.health()));
+  app.get("/v1/hermes/profiles", (_req, res) => res.json(hermesBridge.profiles()));
   app.post("/v1/hermes/events", (req, res) => {
     try {
       res.json(hermesBridge.events(req.body || {}));

@@ -2,6 +2,7 @@
 // It deliberately exposes no QR/session/raw provider state.
 import { sha256 } from "./schema.js";
 import { resolveStagedMedia } from "./hermes_media.js";
+import { profileSummary, resolveAgentProfile } from "./agent_profile.js";
 
 function decodeCursor(value) {
   if (!value) return { createdAt: "", eventId: "" };
@@ -21,6 +22,29 @@ function allowedThreads() {
   return new Set(String(process.env.HERMES_ZALO_ALLOWED_THREADS || "").split(",").map((v) => v.trim()).filter(Boolean));
 }
 
+function allowedUsers() {
+  return new Set(String(process.env.HERMES_ZALO_ALLOWED_USERS || "").split(",").map((v) => v.trim()).filter(Boolean));
+}
+
+function gatewaySettings() {
+  const groupMode = String(process.env.HERMES_ZALO_GROUP_MODE || "mention").trim();
+  return {
+    enabled: process.env.HERMES_ZALO_GATEWAY_ENABLED === "true",
+    autoReply: process.env.HERMES_ZALO_ALLOW_AUTOREPLY === "true",
+    groupMode: ["off", "mention", "all"].includes(groupMode) ? groupMode : "mention",
+    threads: allowedThreads(),
+    users: allowedUsers(),
+  };
+}
+
+function canDeliverInbound(row, settings) {
+  if (!settings.enabled || !settings.threads.size || !settings.users.size) return false;
+  if (row.is_self || !settings.threads.has(String(row.source_id)) || !settings.users.has(String(row.sender_id))) return false;
+  if (row.source_type !== "group") return true;
+  if (settings.groupMode === "all") return true;
+  return settings.groupMode === "mention" && Boolean(row.is_mention);
+}
+
 export function createHermesBridge({ config, store, hub }) {
   const accountId = () => String(process.env.HERMES_ZALO_ACCOUNT_ID || config.default_account_id);
   return {
@@ -33,7 +57,24 @@ export function createHermesBridge({ config, store, hub }) {
         protocol: "zalo-bridge/v1",
         connected: account?.status === "connected" && Boolean(runtime?.api),
         account_ref: `zalo:${sha256(id).slice(0, 16)}`,
-        capabilities: ["text", "typing", "reply", "event-poll"],
+        capabilities: ["text", "typing", "reply", "event-poll", "profile-route"],
+        gateway: {
+          enabled: gatewaySettings().enabled,
+          auto_reply_enabled: gatewaySettings().autoReply,
+          group_mode: gatewaySettings().groupMode,
+          allowlisted_threads: gatewaySettings().threads.size,
+          allowlisted_users: gatewaySettings().users.size,
+        },
+      };
+    },
+    profiles() {
+      const id = accountId();
+      return {
+        ok: true,
+        account_ref: `zalo:${sha256(id).slice(0, 16)}`,
+        profiles: (config.agent_profiles || [])
+          .filter((profile) => profile.account_id === id)
+          .map((profile) => profileSummary(profile)),
       };
     },
     events({ cursor = "", limit = 50 } = {}) {
@@ -41,17 +82,23 @@ export function createHermesBridge({ config, store, hub }) {
       const after = decodeCursor(cursor);
       const rows = store.hermesEventsAfter({ accountId: id, ...after, limit });
       const last = rows.at(-1);
+      const settings = gatewaySettings();
       return {
         ok: true,
-        events: rows.map((row) => ({
-          id: row.event_id,
-          is_self: Boolean(row.is_self),
-          thread: { id: row.source_id, kind: row.source_type === "group" ? "group" : "dm", name: row.source_name || "" },
-          sender: { id: row.sender_id, display_name: row.sender_name || "" },
-          message: { id: row.message_id || row.event_id, type: row.message_type, text: row.text || "" },
-          attachments: (() => { try { const media = JSON.parse(row.metadata_json || "{}").hermes_media || []; return media.filter((item) => item?.id && item?.path).map(({ id, name, kind, mime, size }) => ({ id, name, kind, mime, size })); } catch { return []; } })(),
-          occurred_at: row.created_at,
-        })),
+        // Advance the cursor over filtered rows too. Without this, a disabled
+        // gateway would repeatedly scan the same private event forever.
+        events: rows.filter((row) => canDeliverInbound(row, settings)).map((row) => {
+          const profile = resolveAgentProfile(config, { accountId: id, sourceId: row.source_id });
+          return {
+            id: row.event_id,
+            thread: { id: row.source_id, kind: row.source_type === "group" ? "group" : "dm", name: row.source_name || "" },
+            sender: { id: row.sender_id, display_name: row.sender_name || "" },
+            message: { id: row.message_id || row.event_id, type: row.message_type, text: row.text || "" },
+            route: { profile: profileSummary(profile) },
+            attachments: (() => { try { const media = JSON.parse(row.metadata_json || "{}").hermes_media || []; return media.filter((item) => item?.id && item?.path).map(({ id, name, kind, mime, size }) => ({ id, name, kind, mime, size })); } catch { return []; } })(),
+            occurred_at: row.created_at,
+          };
+        }),
         next_cursor: last ? encodeCursor(last) : String(cursor || ""),
       };
     },
@@ -64,6 +111,7 @@ export function createHermesBridge({ config, store, hub }) {
       const thread = String(threadId || "").trim();
       const body = String(text || "").trim();
       if (!thread || !body || body.length > 4000) throw new Error("invalid_message");
+      if (!gatewaySettings().enabled || !gatewaySettings().autoReply) throw new Error("gateway_autoreply_disabled");
       if (!allowedThreads().has(thread)) throw new Error("thread_not_allowlisted");
       const runtime = hub.getRuntime(accountId());
       const source = store.listSources(accountId()).find((item) => String(item.source_id) === thread);
@@ -79,6 +127,7 @@ export function createHermesBridge({ config, store, hub }) {
     },
     async typing({ threadId, threadType = null } = {}) {
       const thread = String(threadId || "").trim();
+      if (!gatewaySettings().enabled || !gatewaySettings().autoReply) throw new Error("gateway_autoreply_disabled");
       if (!thread || !allowedThreads().has(thread)) throw new Error("thread_not_allowlisted");
       const source = store.listSources(accountId()).find((item) => String(item.source_id) === thread);
       const resolvedThreadType = Number(threadType) === 0 ? 0 : source?.source_type === "dm" ? 0 : 1;

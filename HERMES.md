@@ -34,3 +34,21 @@ Register the ABS Zalo MCP server in Hermes MCP configuration:
 - **Side-effects gated by code**: Outbound messages and destructive actions (kick, transfer ownership) require verification.
 - **Fail-closed default**: Inbound events are listener-only until explicitly configured.
 - **Session safety**: Credentials and tokens are stored in strict-permission local storage, never leaked into model context.
+
+## Option 3 — Native Hermes Gateway Platform (Zalo inbound → Hermes)
+
+For a Hermes gateway profile, install the packaged platform adapter instead of
+patching Hermes core:
+
+```bash
+mkdir -p ~/.hermes/plugins
+cp -R node_modules/abs-zalo-bot/hermes-plugin/platforms/zalo ~/.hermes/plugins/zalo
+hermes plugins enable abs-zalo-platform
+```
+
+The gateway adapter speaks only to the authenticated local ABS bridge. Configure
+`HERMES_ZALO_BRIDGE_URL` and `HERMES_ZALO_BRIDGE_TOKEN` in Hermes, then on the
+bridge explicitly enable `HERMES_ZALO_GATEWAY_ENABLED` with thread and sender
+allowlists. `HERMES_ZALO_ALLOW_AUTOREPLY` remains false by default, so a new
+connection cannot send messages until the operator opts in. See
+[`hermes-plugin/README.md`](hermes-plugin/README.md) for the full safe setup.

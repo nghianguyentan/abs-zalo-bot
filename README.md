@@ -100,6 +100,14 @@ Start MCP with `ABS_ZALO_TOOL_PACK=reader` (default). Move deliberately to `oper
 
 Set `HERMES_ZALO_MEDIA_INGEST=true` only on the private bridge host to stage inbound Zalo attachments for an authenticated Hermes platform plugin. The bridge returns opaque attachment references and serves the staged local file through its authenticated `/v1/hermes/media/:eventId/:attachmentId` endpoint; it never passes provider CDN URLs or Zalo session data to Hermes. Images, documents, audio/voice and video are bounded to 25 MB for images/files and 100 MB for audio/video.
 
+### Hermes Zalo Gateway (0.5)
+
+`hermes-plugin/platforms/zalo` is an installable Hermes gateway adapter. It polls the authenticated local bridge and converts only normalized, approved Zalo events into Hermes `MessageEvent`s; it never handles QR, cookies, sessions or arbitrary `zca-js` calls.
+
+Before it receives a single event, set all of `HERMES_ZALO_GATEWAY_ENABLED=true`, a non-empty `HERMES_ZALO_ALLOWED_THREADS`, and a non-empty `HERMES_ZALO_ALLOWED_USERS`. Sender references are privacy-safe hashes returned by the bridge—not a display name. Groups default to `HERMES_ZALO_GROUP_MODE=mention`. The plugin can connect with `HERMES_ZALO_ALLOW_AUTOREPLY=false`, but reply/typing remain rejected until that separate opt-in is set to `true`.
+
+For profile-aware quality, select `gateway_skill = "your-owner-authored-hermes-skill"` in each `[[agent_profiles]]` record. Hermes then auto-loads that skill for that source/profile, while the bridge still owns policy, confirmation, audit and outbound bounds. Detailed installation: [`hermes-plugin/README.md`](hermes-plugin/README.md).
+
 ---
 
 ## 🔒 Security & Policy Boundaries

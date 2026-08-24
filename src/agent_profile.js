@@ -3,6 +3,7 @@
 
 const PROFILE_ID_RE = /^[a-z][a-z0-9_-]{0,63}$/;
 const TOOL_PACKS = new Set(["reader", "operator", "admin"]);
+const SKILL_NAME_RE = /^[a-z][a-z0-9_-]{0,80}$/;
 
 function bounded(value, max = 1200) {
   return String(value || "").trim().slice(0, max);
@@ -40,6 +41,15 @@ export function normalizeAgentProfiles(rows, defaultAccountId) {
       rules: stringList(row?.rules),
       knowledge: stringList(row?.knowledge),
       tool_pack: toolPack,
+      // This is intentionally only a skill *name*. The profile never embeds
+      // arbitrary content from the bridge into a gateway event.
+      gateway_skill: (() => {
+        const value = bounded(row?.gateway_skill, 81);
+        if (value && !SKILL_NAME_RE.test(value)) {
+          throw new Error(`invalid profile gateway_skill: ${value}`);
+        }
+        return value;
+      })(),
     };
   });
 }
@@ -57,7 +67,7 @@ export function resolveAgentProfile(config, { accountId, sourceId } = {}) {
 
 export function profileSummary(profile) {
   if (!profile) {
-    return { configured: false, id: "", name: "", tool_pack: "reader", has_identity: false, has_voice: false, rules: 0, knowledge: 0 };
+    return { configured: false, id: "", name: "", tool_pack: "reader", has_identity: false, has_voice: false, rules: 0, knowledge: 0, gateway_skill: "" };
   }
   return {
     configured: true,
@@ -68,6 +78,7 @@ export function profileSummary(profile) {
     has_voice: Boolean(profile.voice),
     rules: profile.rules.length,
     knowledge: profile.knowledge.length,
+    gateway_skill: profile.gateway_skill || "",
   };
 }
 

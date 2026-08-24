@@ -1,0 +1,34 @@
+name: abs-zalo-platform
+label: ABS Zalo
+kind: platform
+version: 0.5.0
+description: >
+  Private Zalo gateway adapter for Hermes Agent. It polls an authenticated,
+  local ABS Zalo bridge and only receives explicitly allowlisted events.
+author: ABS
+requires_env:
+  - name: HERMES_ZALO_BRIDGE_URL
+    description: "Private ABS Zalo bridge URL, usually http://127.0.0.1:3871"
+    prompt: "ABS Zalo bridge URL"
+    password: false
+  - name: HERMES_ZALO_BRIDGE_TOKEN
+    description: "Dashboard token used only between Hermes and the private Zalo bridge"
+    prompt: "ABS Zalo bridge token"
+    password: true
+optional_env:
+  - name: HERMES_ZALO_ALLOWED_USERS
+    description: "Comma-separated approved Zalo sender references (the bridge enforces this too)"
+    prompt: "Allowed Zalo sender references"
+    password: false
+  - name: HERMES_ZALO_ALLOW_ALL_USERS
+    description: "Never enable in production; the ABS Zalo bridge still requires its own allowlist"
+    prompt: "Allow all gateway users?"
+    password: false
+  - name: HERMES_ZALO_HOME_CHANNEL
+    description: "Approved Zalo thread ID used for Hermes cron delivery"
+    prompt: "Home Zalo thread ID"
+    password: false
+  - name: HERMES_ZALO_POLL_SECONDS
+    description: "Polling interval in seconds (default 1.0, minimum 0.25)"
+    prompt: "Polling interval"
+    password: false

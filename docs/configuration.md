@@ -59,6 +59,30 @@ HERMES_API_SERVER_KEY=
 HERMES_API_MODEL=hermes-agent
 ```
 
+### Hermes Zalo gateway
+
+The native Hermes platform plugin is opt-in and requires independent inbound and
+outbound gates:
+
+```text
+# On the ABS Zalo bridge
+HERMES_ZALO_GATEWAY_ENABLED=false
+HERMES_ZALO_ALLOW_AUTOREPLY=false
+HERMES_ZALO_ALLOWED_THREADS=
+HERMES_ZALO_ALLOWED_USERS=
+HERMES_ZALO_GROUP_MODE=mention
+
+# On the Hermes gateway host
+HERMES_ZALO_BRIDGE_URL=http://127.0.0.1:3871
+HERMES_ZALO_BRIDGE_TOKEN=<same-dashboard-token>
+```
+
+Both thread and sender allowlists must be non-empty before the bridge emits an
+event. Sender entries are the redacted sender hashes visible in bridge event
+data, not phone numbers or display names. `mention` is the only safe default
+for group traffic. Keep autoreply false while validating the profile and skill;
+when false, the bridge rejects typing and text sends even if Hermes connects.
+
 ### OA
 
 Credential values stay outside Git:

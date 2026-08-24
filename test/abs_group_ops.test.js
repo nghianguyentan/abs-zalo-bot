@@ -9,6 +9,7 @@ import { loadConfig } from "../src/config.js";
 import { Store } from "../src/store.js";
 import { PolicyGuard } from "../src/policy.js";
 import { BridgeHub } from "../src/zalo_runtime.js";
+import { sha256 } from "../src/schema.js";
 
 function tempDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), "abs-group-ops-test-"));
@@ -164,10 +165,22 @@ test("ABS Zalo Runtime methods & Server endpoints for group management and polls
 
   await t.test("Hermes bridge v1 is cursor-safe and allowlist-gated", async () => {
     const prior = process.env.HERMES_ZALO_ALLOWED_THREADS;
+    const priorUsers = process.env.HERMES_ZALO_ALLOWED_USERS;
+    const priorGateway = process.env.HERMES_ZALO_GATEWAY_ENABLED;
+    const priorAutoreply = process.env.HERMES_ZALO_ALLOW_AUTOREPLY;
     process.env.HERMES_ZALO_ALLOWED_THREADS = "dm-hermes";
+    process.env.HERMES_ZALO_ALLOWED_USERS = sha256("default:user-hermes").slice(0, 24);
+    process.env.HERMES_ZALO_GATEWAY_ENABLED = "true";
+    process.env.HERMES_ZALO_ALLOW_AUTOREPLY = "true";
     t.after(() => {
       if (prior == null) delete process.env.HERMES_ZALO_ALLOWED_THREADS;
       else process.env.HERMES_ZALO_ALLOWED_THREADS = prior;
+      if (priorUsers == null) delete process.env.HERMES_ZALO_ALLOWED_USERS;
+      else process.env.HERMES_ZALO_ALLOWED_USERS = priorUsers;
+      if (priorGateway == null) delete process.env.HERMES_ZALO_GATEWAY_ENABLED;
+      else process.env.HERMES_ZALO_GATEWAY_ENABLED = priorGateway;
+      if (priorAutoreply == null) delete process.env.HERMES_ZALO_ALLOW_AUTOREPLY;
+      else process.env.HERMES_ZALO_ALLOW_AUTOREPLY = priorAutoreply;
     });
     store.upsertSource({ accountId: "default", sourceId: "dm-hermes", sourceType: "dm", sourceName: "Hermes test", mode: "reply_enabled", isAllowed: true });
     store.putEvent({
@@ -188,7 +201,35 @@ test("ABS Zalo Runtime methods & Server endpoints for group management and polls
     assert.equal((await blocked.json()).error, "thread_not_allowlisted");
   });
 
+  await t.test("Hermes gateway keeps inbound and outbound fail-closed until explicitly enabled", async () => {
+    const keys = ["HERMES_ZALO_ALLOWED_THREADS", "HERMES_ZALO_ALLOWED_USERS", "HERMES_ZALO_GATEWAY_ENABLED", "HERMES_ZALO_ALLOW_AUTOREPLY"];
+    const prior = Object.fromEntries(keys.map((key) => [key, process.env[key]]));
+    for (const key of keys) delete process.env[key];
+    t.after(() => {
+      for (const key of keys) {
+        if (prior[key] == null) delete process.env[key];
+        else process.env[key] = prior[key];
+      }
+    });
+    const events = await fetch(`${base}/v1/hermes/events`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ limit: 10 }) });
+    assert.deepEqual((await events.json()).events, []);
+    const send = await fetch(`${base}/v1/hermes/messages`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ thread_id: "dm-hermes", text: "must not send" }) });
+    assert.equal(send.status, 400);
+    assert.equal((await send.json()).error, "gateway_autoreply_disabled");
+  });
+
   await t.test("Hermes bridge exposes staged media by opaque attachment reference", async () => {
+    const keys = ["HERMES_ZALO_ALLOWED_THREADS", "HERMES_ZALO_ALLOWED_USERS", "HERMES_ZALO_GATEWAY_ENABLED"];
+    const prior = Object.fromEntries(keys.map((key) => [key, process.env[key]]));
+    process.env.HERMES_ZALO_ALLOWED_THREADS = "dm-hermes";
+    process.env.HERMES_ZALO_ALLOWED_USERS = sha256("default:user-hermes").slice(0, 24);
+    process.env.HERMES_ZALO_GATEWAY_ENABLED = "true";
+    t.after(() => {
+      for (const key of keys) {
+        if (prior[key] == null) delete process.env[key];
+        else process.env[key] = prior[key];
+      }
+    });
     const eventId = "event-media-1";
     const attachmentId = "fixture-image";
     const relative = path.join("media", eventId, `${attachmentId}-fixture.png`);

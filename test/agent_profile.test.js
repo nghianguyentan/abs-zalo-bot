@@ -56,6 +56,7 @@ mission = "Escalate confirmed risks."
 voice = "Direct."
 knowledge = ["Only escalate confirmed risks."]
 tool_pack = "operator"
+gateway_skill = "priority-ops"
 `;
 
 test("agent profiles select the exact source before the account default", () => {
@@ -65,6 +66,7 @@ test("agent profiles select the exact source before the account default", () => 
   const fallback = resolveAgentProfile(config, { accountId: "default", sourceId: "other-fixture" });
   assert.equal(exact.id, "ops-priority");
   assert.equal(fallback.id, "ops-default");
+  assert.equal(exact.gateway_skill, "priority-ops");
 
   const instruction = buildProfileSystemInstruction(exact);
   assert.match(instruction, /A priority operator/);
@@ -75,6 +77,10 @@ test("invalid profile ids and tool packs fail config loading", () => {
   const dir = tempDir();
   assert.throws(
     () => loadConfig(configAt(dir, `default_account_id="default"\nretention_days=30\n[[agent_profiles]]\nid="Bad id"\n`)),
+    ConfigError,
+  );
+  assert.throws(
+    () => loadConfig(configAt(dir, `default_account_id="default"\nretention_days=30\n[[agent_profiles]]\nid="valid"\ngateway_skill="Bad skill"\n`)),
     ConfigError,
   );
   assert.throws(
