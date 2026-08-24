@@ -52,7 +52,7 @@ test("service metadata is exposed without runtime data", async () => {
 
   try {
     const expected = publicBrandMetadata();
-    for (const route of ["/healthz", "/api/health", "/api/status", "/api/battle-ready", "/api/brand"]) {
+    for (const route of ["/healthz", "/api/health", "/api/status", "/api/readiness", "/api/battle-ready", "/api/brand"]) {
       const response = await fetch(`${base}${route}`);
       const payload = await response.json();
       assert.equal(response.status, 200, route);
@@ -62,6 +62,9 @@ test("service metadata is exposed without runtime data", async () => {
       assert.equal(Object.hasOwn(payload.brand, "cookie"), false, route);
       assert.equal(Object.hasOwn(payload.brand, "session"), false, route);
     }
+    const readiness = await (await fetch(`${base}/api/readiness`)).json();
+    assert.equal(readiness.profile.configured, false);
+    assert.equal(Object.hasOwn(readiness.profile, "identity"), false);
   } finally {
     await new Promise((resolve) => server.close(resolve));
     ctx.store.close();

@@ -1,6 +1,7 @@
 // Versioned, profile-scoped adapter contract for external Hermes platform plugins.
 // It deliberately exposes no QR/session/raw provider state.
 import { sha256 } from "./schema.js";
+import { resolveStagedMedia } from "./hermes_media.js";
 
 function decodeCursor(value) {
   if (!value) return { createdAt: "", eventId: "" };
@@ -48,10 +49,16 @@ export function createHermesBridge({ config, store, hub }) {
           thread: { id: row.source_id, kind: row.source_type === "group" ? "group" : "dm", name: row.source_name || "" },
           sender: { id: row.sender_id, display_name: row.sender_name || "" },
           message: { id: row.message_id || row.event_id, type: row.message_type, text: row.text || "" },
+          attachments: (() => { try { const media = JSON.parse(row.metadata_json || "{}").hermes_media || []; return media.filter((item) => item?.id && item?.path).map(({ id, name, kind, mime, size }) => ({ id, name, kind, mime, size })); } catch { return []; } })(),
           occurred_at: row.created_at,
         })),
         next_cursor: last ? encodeCursor(last) : String(cursor || ""),
       };
+    },
+    media({ eventId, attachmentId }) {
+      const metadata = store.hermesMediaMetadata(eventId);
+      if (!metadata) return null;
+      return resolveStagedMedia(store.dataDir, eventId, attachmentId, { ...metadata, event_id: eventId });
     },
     async sendMessage({ threadId, text, replyTo = null, threadType = null } = {}) {
       const thread = String(threadId || "").trim();

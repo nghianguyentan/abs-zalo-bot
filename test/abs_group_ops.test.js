@@ -187,4 +187,29 @@ test("ABS Zalo Runtime methods & Server endpoints for group management and polls
     assert.equal(blocked.status, 400);
     assert.equal((await blocked.json()).error, "thread_not_allowlisted");
   });
+
+  await t.test("Hermes bridge exposes staged media by opaque attachment reference", async () => {
+    const eventId = "event-media-1";
+    const attachmentId = "fixture-image";
+    const relative = path.join("media", eventId, `${attachmentId}-fixture.png`);
+    const full = path.join(dir, relative);
+    fs.mkdirSync(path.dirname(full), { recursive: true, mode: 0o700 });
+    fs.writeFileSync(full, Buffer.from("fixture-media"), { mode: 0o600 });
+    store.putEvent({
+      event_id: eventId, account_id: "default", source_id: "dm-hermes", source_type: "dm",
+      source_name: "Hermes test", sender_id: "user-hermes", sender_name: "Tester", message_id: "msg-media-1",
+      message_type: "image", text: "", created_at: "2026-08-24T05:01:00.000Z",
+      raw_metadata: { hermes_media: [{ id: attachmentId, path: relative, name: "fixture.png", kind: "image", mime: "image/png", size: 13 }] },
+    });
+    const events = await fetch(`${base}/v1/hermes/events`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ limit: 20 }) });
+    const payload = await events.json();
+    const event = payload.events.find((item) => item.id === eventId);
+    assert.deepEqual(event.attachments, [{ id: attachmentId, name: "fixture.png", kind: "image", mime: "image/png", size: 13 }]);
+    const media = await fetch(`${base}/v1/hermes/media/${eventId}/${attachmentId}`);
+    assert.equal(media.status, 200);
+    assert.equal(media.headers.get("content-type"), "image/png");
+    assert.equal(await media.text(), "fixture-media");
+    const missing = await fetch(`${base}/v1/hermes/media/${eventId}/not-real`);
+    assert.equal(missing.status, 404);
+  });
 });

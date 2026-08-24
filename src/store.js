@@ -719,12 +719,18 @@ export class Store {
     const lim = Math.min(Math.max(Number(limit) || 50, 1), 100);
     return this.db.prepare(`SELECT id as event_id, account_id, source_type, source_id,
       source_name, sender_hash as sender_id, sender_display_name as sender_name,
-      message_id, message_type, text_redacted as text, is_self, created_at
+      message_id, message_type, text_redacted as text, metadata_json, is_self, created_at
       FROM zalo_messages
       WHERE account_id=? AND (created_at > ? OR (created_at = ? AND id > ?))
       ORDER BY created_at ASC, id ASC LIMIT ?`).all(
       String(accountId), String(createdAt || ""), String(createdAt || ""), String(eventId || ""), lim,
     );
+  }
+
+  hermesMediaMetadata(eventId) {
+    const row = this.db.prepare(`SELECT metadata_json FROM zalo_messages WHERE id=?`).get(String(eventId));
+    if (!row) return null;
+    try { return JSON.parse(row.metadata_json || "{}"); } catch { return null; }
   }
 
   countEvents(accountId = null) {

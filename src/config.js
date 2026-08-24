@@ -2,6 +2,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { normalizeMode, SOURCE_MODES } from "./schema.js";
+import { normalizeAgentProfiles } from "./agent_profile.js";
 
 export class ConfigError extends Error {
   constructor(message) {
@@ -123,6 +124,13 @@ export function loadConfig(configPath) {
     viewer: Array.isArray(data.roles?.viewer) ? data.roles.viewer.map(String) : [],
   };
 
+  let agentProfiles;
+  try {
+    agentProfiles = normalizeAgentProfiles(data.agent_profiles, defaultAccountId);
+  } catch (err) {
+    throw new ConfigError(String(err?.message || err));
+  }
+
   const hermes = {
     webhook_url: String(data.hermes?.webhook_url || process.env.HERMES_WEBHOOK_URL || ""),
     api_base: String(
@@ -166,6 +174,7 @@ export function loadConfig(configPath) {
     rate_limit: rateLimit,
     roles,
     hermes,
+    agent_profiles: agentProfiles,
   };
 }
 

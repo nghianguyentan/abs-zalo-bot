@@ -6,6 +6,7 @@ import { callHermesBrain } from "./hermes_client.js";
 import { sanitizeForHermes } from "./privacy.js";
 import { sha256, utcNow } from "./schema.js";
 import { recordZaloBrainTurn } from "./abs_telemetry.js";
+import { buildProfileSystemInstruction, resolveAgentProfile } from "./agent_profile.js";
 
 const BOT_PREFIX_RE = /^(?:bot|@bot)\s+/i;
 
@@ -46,7 +47,7 @@ function buildFallbackReport({ body, stats, events, hours }) {
   });
 }
 
-function buildBrainPrompt({ body, stats, events, hours, senderName }) {
+function buildBrainPrompt({ body, stats, events, hours, senderName, profile }) {
   const samples = events
     .slice(0, 20)
     .map((e) => {
@@ -60,6 +61,7 @@ function buildBrainPrompt({ body, stats, events, hours, senderName }) {
 
   return [
     "Bạn là Hermes Agent — não xử lý kênh Zalo cá nhân (channel adapter, không phải bot public).",
+    profile ? `Profile đang hoạt động: ${profile.name}. Giữ đúng identity và voice của profile.` : "Chưa có profile; chỉ dùng giọng vận hành trung tính.",
     "Viết ĐÚNG 1 tin điều hành tiếng Việt gửi vào destination đã cấu hình.",
     "Format bắt buộc:",
     "Tổng hợp vận hành — destination đã cấu hình",
@@ -139,6 +141,7 @@ export async function handleBotBrainCommand({
     .recentEvents({ accountId, limit: 120, sinceIso: since })
     .filter((e) => e.source_id !== dest.group_id);
   const stats = collectStats(store, accountId, events);
+  const profile = resolveAgentProfile(config, { accountId, sourceId: event.source_id });
 
   store.audit({
     accountId,
@@ -165,12 +168,14 @@ export async function handleBotBrainCommand({
     events,
     hours,
     senderName: event.sender_name,
+    profile,
   });
 
   const brainStartedAt = Date.now();
   const brain = await callHermesBrain({
     config,
     prompt,
+    system: buildProfileSystemInstruction(profile),
     fetchImpl,
     maxRetries: 2,
   });

@@ -2,7 +2,7 @@
 
 [![npm version](https://img.shields.io/npm/v/abs-zalo-bot.svg?color=blue)](https://www.npmjs.com/package/abs-zalo-bot)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
-[![Automated Tests](https://img.shields.io/badge/Tests-72%2F72%20Passing-brightgreen.svg)](test/)
+[![Automated Tests](https://img.shields.io/badge/Tests-77%2F77%20Passing-brightgreen.svg)](test/)
 [![AI Agent Ready](https://img.shields.io/badge/AI%20Agent-Hermes%20%7C%20Claude%20Code%20%7C%20Codex-purple.svg)](mcp/)
 [![Model Context Protocol](https://img.shields.io/badge/MCP-Standard%20v1.3.0-blueviolet.svg)](mcp/)
 
@@ -56,6 +56,8 @@ Attach `npx abs-zalo-bot` or `node mcp/server.js` to your Agent configuration:
 | | `abs_zalo_react_message` | Send emoji reactions to messages (`/:heart`, `/:like`, etc.) |
 | | `abs_zalo_undo_message` | Recall / undo a previously sent message |
 | **Personal lifecycle** | `abs_zalo_personal_action` | Explicitly confirmed rich message/reply/mention/file, sticker, voice/video, forward, typing, group lifecycle/settings and friend lifecycle actions |
+| **Agent readiness** | `abs_zalo_readiness` | Read-only checklist for connection, destination, Hermes brain, profile and safe live mode |
+| **Capability packs** | `abs_zalo_capability_packs` | Shows the active `reader` / `operator` / `admin` MCP guard level |
 | **Discovery & Intel** | `abs_zalo_get_user_info` | Fetch public user profile by userId |
 | | `abs_zalo_get_group_info` | Fetch group settings and metadata |
 | | `abs_zalo_find_user` | Lookup user profile by phone number |
@@ -87,6 +89,16 @@ npm start
 
 ### 3. Open Control Dashboard
 Open `http://127.0.0.1:3871` in your browser to scan QR code, configure group policies, and manage your AI Agent bridge.
+
+### Hermes Profile Pack
+
+Add one or more `[[agent_profiles]]` blocks to private `config.toml` to give each account or destination an owner-authored identity, mission, voice, operating rules, knowledge anchors and intended tool pack. These fields are inserted only into the Hermes system instruction; inbound Zalo messages cannot rewrite them.
+
+Start MCP with `ABS_ZALO_TOOL_PACK=reader` (default). Move deliberately to `operator` for reactions/polls/recall, or `admin` for group and personal lifecycle actions. This is an extra MCP guard; explicit confirmation and bridge policy still apply.
+
+### Hermes Zalo media bridge
+
+Set `HERMES_ZALO_MEDIA_INGEST=true` only on the private bridge host to stage inbound Zalo attachments for an authenticated Hermes platform plugin. The bridge returns opaque attachment references and serves the staged local file through its authenticated `/v1/hermes/media/:eventId/:attachmentId` endpoint; it never passes provider CDN URLs or Zalo session data to Hermes. Images, documents, audio/voice and video are bounded to 25 MB for images/files and 100 MB for audio/video.
 
 ---
 

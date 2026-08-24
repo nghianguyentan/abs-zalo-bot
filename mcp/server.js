@@ -12,15 +12,26 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
+import {
+  capabilityPackSummary,
+  canUseToolPack,
+  normalizeToolPack,
+  requiredToolPackForBridgeRequest,
+} from "../src/mcp_capabilities.js";
 
 const BRIDGE_URL = (process.env.ZALO_BRIDGE_URL || "http://127.0.0.1:3871").replace(/\/$/, "");
 const TOKEN = process.env.DASHBOARD_TOKEN || process.env.ZALO_BRIDGE_TOKEN || "";
+const TOOL_PACK = normalizeToolPack(process.env.ABS_ZALO_TOOL_PACK || "reader");
 
 function log(...args) {
   console.error("[abs-zalo-mcp]", ...args);
 }
 
 async function bridge(path, { method = "GET", body = null } = {}) {
+  const requiredPack = requiredToolPackForBridgeRequest(path, method);
+  if (!canUseToolPack(TOOL_PACK, requiredPack)) {
+    throw new Error(`tool_pack_denied: ${TOOL_PACK} cannot use ${requiredPack} capability`);
+  }
   const headers = { "content-type": "application/json" };
   if (TOKEN && TOKEN !== "change-me") headers["x-bridge-token"] = TOKEN;
   const res = await fetch(`${BRIDGE_URL}${path}`, {
@@ -57,8 +68,29 @@ function fail(err) {
 
 const server = new McpServer({
   name: "abs-zalo-mcp",
-  version: "0.4.0",
+  version: "0.4.1",
 });
+
+server.tool(
+  "abs_zalo_capability_packs",
+  "Show the active MCP capability pack and the safe progression to broader Zalo actions.",
+  {},
+  async () => ok(capabilityPackSummary(TOOL_PACK)),
+);
+
+server.tool(
+  "abs_zalo_readiness",
+  "Read-only readiness report: connection, destination, profile, Hermes brain and safe live-mode status.",
+  { account_id: z.string().optional() },
+  async ({ account_id }) => {
+    try {
+      const q = account_id ? `?account_id=${encodeURIComponent(account_id)}` : "";
+      return ok(await bridge(`/api/readiness${q}`));
+    } catch (e) {
+      return fail(e);
+    }
+  },
+);
 
 // ── Read & Telemetry Tools ──
 

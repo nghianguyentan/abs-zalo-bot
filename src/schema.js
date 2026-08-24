@@ -1,5 +1,6 @@
 // Shared constants + pure helpers. No secrets. No network.
 import crypto from "node:crypto";
+import { extractAttachmentCandidates } from "./hermes_media.js";
 
 export const ACCOUNT_STATUSES = Object.freeze([
   "disconnected",
@@ -158,6 +159,9 @@ export function normalizeInboundMessage({ accountId, message, sourceName = "" })
       has_quote: Boolean(data.quote),
       mention_count: Array.isArray(data.mentions) ? data.mentions.length : 0,
     },
+    // Ephemeral only: AccountRuntime stages approved media and removes URLs
+    // before Store persists the event.
+    attachment_candidates: extractAttachmentCandidates(content),
     created_at: createdAt,
   };
 }

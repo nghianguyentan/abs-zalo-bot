@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { EventEmitter } from "node:events";
 import { normalizeInboundMessage, utcNow } from "./schema.js";
+import { stageHermesMedia } from "./hermes_media.js";
 
 const PERSONAL_ACTIONS = new Set([
   "send_message", "send_sticker", "send_voice", "send_video", "forward_message", "typing",
@@ -194,7 +195,8 @@ export class AccountRuntime extends EventEmitter {
           accountId: this.accountId,
           message,
         });
-        Promise.resolve(this.onEvent?.(event, this)).catch((err) => {
+        Promise.resolve(stageHermesMedia(event, { dataDir: this.store.dataDir }))
+          .then((staged) => this.onEvent?.(staged, this)).catch((err) => {
           try {
             this.store.setHealth(
               `last_listener_error_${this.accountId}`,

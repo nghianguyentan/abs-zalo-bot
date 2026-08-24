@@ -10,6 +10,7 @@ import { createOaWebhookHandler } from "./oa_webhook.js";
 import { createOaAutoReplyWorker } from "./oa_auto_reply.js";
 import { publicBrandMetadata } from "./brand.js";
 import { createHermesBridge } from "./hermes_bridge.js";
+import { assessAgentReadiness } from "./agent_profile.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -138,6 +139,13 @@ export function createApp({
       res.status(400).json({ ok: false, error: String(err?.message || err).slice(0, 120) });
     }
   });
+  app.get("/v1/hermes/media/:eventId/:attachmentId", (req, res) => {
+    const media = hermesBridge.media({ eventId: req.params.eventId, attachmentId: req.params.attachmentId });
+    if (!media) return res.status(404).json({ ok: false, error: "media_not_found" });
+    res.type(media.mime || "application/octet-stream");
+    res.setHeader("Content-Disposition", `attachment; filename="${String(media.name || "attachment").replace(/[^\w. -]/g, "_")}"`);
+    return res.sendFile(media.full);
+  });
   app.post("/v1/hermes/messages", async (req, res) => {
     try {
       res.json(await hermesBridge.sendMessage({
@@ -192,6 +200,14 @@ export function createApp({
         snapshot: store.snapshot(),
       }),
     );
+  });
+
+  app.get("/api/readiness", (req, res) => {
+    const accountId = String(req.query.account_id || config.default_account_id);
+    res.json({
+      brand: publicBrandMetadata(),
+      ...assessAgentReadiness({ config, store, accountId }),
+    });
   });
 
   app.get("/api/discovery", (req, res) => {
