@@ -1,6 +1,7 @@
 // Historical + identity corpus backfill. READ_ONLY — never sends.
 import { normalizeInboundMessage, utcNow } from "./schema.js";
 import { listGroupsDetailed } from "./discovery.js";
+import { stageHermesMedia } from "./hermes_media.js";
 
 function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
@@ -307,6 +308,15 @@ export async function backfillAccountCorpus({
             displayName: event.sender_name || "",
           });
         }
+        // Same opt-in staging the live listener applies (zalo_runtime.js)
+        // — only when HERMES_ZALO_MEDIA_INGEST=true, and only ever to a
+        // local file under data/media; never a provider URL kept in the
+        // DB. Without this, a backfilled image message carries no
+        // attachment reference at all (attachment_candidates is dropped
+        // silently by store.putEvent), so a historical photo could never
+        // be described/OCR'd by a downstream pipeline reading this corpus
+        // read-only (e.g. /root/zalo_media_log).
+        await stageHermesMedia(event, { dataDir: store.dataDir });
         const inserted = store.putEvent(event);
         if (inserted) result.messages_ingested += 1;
         else result.messages_skipped += 1;
